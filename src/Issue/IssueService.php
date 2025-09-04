@@ -514,6 +514,45 @@ class IssueService extends \JiraCloud\JiraClient
         return $result;
     }
 
+
+    public function searchJql(
+        string $jql,
+        ?string $nextPageToken = null,
+        int $maxResults = 15,
+        array $fields = ['*all'],
+        array $expand = [],
+        array $properties = [],
+        bool $fieldsByKeys = false,
+        bool $failFast = true,
+        array $reconcileIssues = [],
+    ): IssueSearchJqlResult {
+        $payload = [
+            'jql' => $jql,
+            'nextPageToken' => $nextPageToken,
+            'maxResults' => $maxResults,
+            'fields' => implode(',', $fields),
+            'expand' => $expand,
+            'properties' => $properties,
+            'fieldsByKeys' => $fieldsByKeys,
+            'failFast' => $failFast,
+            'reconcileIssues' => $reconcileIssues,
+        ];
+
+        $ret = $this->execGet('/search/jql', $payload);
+        $json = json_decode($ret);
+
+        return $this->json_mapper->map(
+            $json,
+            new IssueSearchJqlResult()
+        );
+    }
+
+    public function execGet(string $context, ?array $post_data = null): string|bool
+    {
+        $context .= '/?' . http_build_query($post_data);
+
+        return $this->exec($context, null, 'GET');
+    }
     /**
      * get TimeTracking info.
      *
