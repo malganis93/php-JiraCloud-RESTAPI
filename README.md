@@ -53,7 +53,7 @@ If you want to interact with Jira On-premise(Server or Data Center) instead of C
    require 'vendor/autoload.php';
    ```
 
-**Laravel:** Once installed, if you are not using automatic package discovery, then you need to register the `JiraCloud\JiraCloudServiceProvider` service provider in your `config/app.php`.
+**Laravel:** Once installed, if you are not using automatic package discovery, then you need to register the `JiraCloud\JiraCloudApiServiceProvider` service provider in your `config/app.php`.
 
 # Configuration
 
@@ -1149,30 +1149,56 @@ Not working at this time.!
 <?php
 require 'vendor/autoload.php';
 
-use JiraCloud\Issue\IssueService;
+use DH\Adf\Node\Block\Document;
+use JiraCloud\ADF\AtlassianDocumentFormat;
 use JiraCloud\Issue\Comment;
-use JiraCloud\JiraException;
+use JiraCloud\Issue\IssueService;
 
 $issueKey = 'TEST-879';
 
 try {			
     $comment = new Comment();
 
-    $body = <<<COMMENT
-Adds a new comment to an issue.
-* Bullet 1
-* Bullet 2
-** sub Bullet 1
-** sub Bullet 2
-* Bullet 3
-COMMENT;
+    $code =<<<CODE
+<?php
+\$i = 123;
+\$a = ['hello', 'world', ];
+var_dump([\$i => \$a]);
+CODE;
 
-    $comment->setBody($body)
-        ->setVisibilityAsString('role', 'Users');
+    $doc = (new Document())
+        ->heading(1)            // header level 1, can have child blocks (needs to be closed with `->end()`)
+            ->text('h1')        // simple unstyled text, cannot have child blocks (no `->end()` needed)
+        ->end()                 // closes `heading` node
+        ->paragraph()           // paragraph, can have child blocks (needs to be closed with `->end()`)
+            ->text('we’re ')    // simple unstyled text
+            ->strong('support') // text node embedding a `strong` mark
+            ->text(' ')         // simple unstyled text
+            ->em('markdown')    // text node embedding a `em` mark
+            ->text('. ')        // simple unstyled text
+            ->underline('like') // text node embedding a `underline` mark
+            ->text(' this.')    // simple unstyled text
+            ->text(' date=' . date("Y-m-d H:i:s"))
+        ->end()                 // closes `paragraph` node
+        ->heading(2)            // header level 2
+          ->text('h2')        // simple unstyled text
+        ->end()                 // closes `heading` node
+        ->heading(3)
+            ->text('heading 3')
+        ->end()
+        ->paragraph()           // paragraph
+          ->text('also support heading.') // simple unstyled text
+        ->end()                 // closes `paragraph` node
+        ->codeblock('php')
+         ->text($code)
+        ->end()
     ;
 
+    $comment->setBodyByAtlassianDocumentFormat($doc);
+
     $issueService = new IssueService();
-    $ret = $issueService->addComment($issueKey, $comment);
+    $ret = $issueService->addComment($subTaskIssueKey, $comment);
+            
     print_r($ret);
 } catch (JiraCloud\JiraException $e) {
     $this->assertTrue(FALSE, 'add Comment Failed : ' . $e->getMessage());
@@ -1182,7 +1208,7 @@ COMMENT;
 
 #### Get comment
 
-[See Jira API reference](https://docs.atlassian.com/software/jira/docs/api/REST/latest/#api/2/issue-getComments)
+[See Jira API reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-comments/#api-rest-api-3-issue-issueidorkey-comment-get)
 
 ```php
 <?php
@@ -1204,8 +1230,11 @@ try {
    
     $comments = $issueService->getComments($issueKey, $param);
 
-    var_dump($comments);
-
+    // $comments->comments is a real array of comment
+    foreach ($comments->comments as $comment){
+        var_dump(["id" => comment->id, "self" => $comment->self]);
+    }  
+    
 } catch (JiraCloud\JiraException $e) {
     $this->assertTrue(false, 'get Comment Failed : '.$e->getMessage());
 }
@@ -1243,7 +1272,7 @@ try {
 
 #### Delete comment
 
-[See Jira API reference](https://docs.atlassian.com/software/jira/docs/api/REST/latest/#api/2/issue-deleteComment)
+[See Jira API reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-comments/#api-rest-api-3-issue-issueidorkey-comment-id-delete)
 
 ```php
 <?php
@@ -1269,7 +1298,7 @@ try {
 
 #### Update comment
 
-[See Jira API reference](https://docs.atlassian.com/software/jira/docs/api/REST/latest/#api/2/issue-updateComment)
+[See Jira API reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-comments/#api-rest-api-3-issue-issueidorkey-comment-id-put)
 
 ```php
 <?php
@@ -1287,9 +1316,51 @@ try {
     $issueService = new IssueService();
         
     $comment = new Comment();
-    $comment->setBody('Updated comments');
-    
-    $issueService->updateComment($issueKey, $commentId, $comment);
+
+    $code =<<<CODE
+# This program adds two numbers
+num1 = 1.5
+num2 = 6.3
+
+# Add two numbers
+sum = num1 + num2
+
+# Display the sum
+print('The sum of {0} and {1} is {2}'.format(num1, num2, sum))
+CODE;
+
+    $doc = (new Document())
+        ->heading(2)            // header level 1, can have child blocks (needs to be closed with `->end()`)
+            ->text('h2')        // simple unstyled text, cannot have child blocks (no `->end()` needed)
+        ->end()                 // closes `heading` node
+        ->heading(3)            // header level 2
+            ->text('h3')        // simple unstyled text
+        ->end()                 // closes `heading` node
+        ->heading(4)
+            ->text('heading 4')
+        ->end()
+        ->paragraph()           // paragraph
+            ->text('also support heading.') // simple unstyled text
+        ->end()                 // closes `paragraph` node
+        ->codeblock('python')
+            ->text($code)
+        ->end()
+        ->paragraph()           // paragraph, can have child blocks (needs to be closed with `->end()`)
+            ->text('we’re ')    // simple unstyled text
+            ->strong('support') // text node embedding a `strong` mark
+            ->text(' ')         // simple unstyled text
+            ->em('markdown')    // text node embedding a `em` mark
+            ->text('. ')        // simple unstyled text
+            ->underline('like') // text node embedding a `underline` mark
+            ->text(' this.')    // simple unstyled text
+            ->text(' date=' . date("Y-m-d H:i:s"))
+        ->end()                 // closes `paragraph` node
+    ;
+
+    $comment->setBodyByAtlassianDocumentFormat($doc);
+
+    $issueService = new IssueService();
+    $ret = $issueService->updateComment($issueKey, $comment_id, $comment);
 
 } catch (JiraCloud\JiraException $e) {
     $this->assertTrue(false, 'Update comment Failed : '.$e->getMessage());
@@ -1320,11 +1391,26 @@ $issueKey = 'TEST-879';
 try {			
     $transition = new Transition();
     $transition->setTransitionName('In Progress');
-    $transition->setCommentBody('performing the transition via REST API.');
+    
+    $doc = (new Document())
+                ->paragraph()           // paragraph, can have child blocks (needs to be closed with `->end()`)
+                    ->text('Issue ')    // simple unstyled text
+                    ->strong(' status') // text node embedding a `strong` mark
+                    ->text(' ')         // simple unstyled text
+                    ->text(' changed ')    // text node embedding a `em` mark
+                    ->text('. ')        // simple unstyled text
+                    ->underline('by') // text node embedding a `underline` mark
+                    ->em(' REST API.')    // simple unstyled text
+                ->end()                 // closes `paragraph` node
+            ;
+
+    $comment = new AtlassianDocumentFormat($doc);
+    
+    $transition->setCommentBody($comment);
 
     $issueService = new IssueService();
-
     $issueService->transition($issueKey, $transition);
+    
 } catch (JiraCloud\JiraException $e) {
     $this->assertTrue(FALSE, 'add Comment Failed : ' . $e->getMessage());
 }
@@ -1490,7 +1576,7 @@ try {
 
 ##### get remote issue link
 
-* [See Jira API reference](https://docs.atlassian.com/software/jira/docs/api/REST/latest/#api/2/issue-getRemoteIssueLinks)
+* [See Jira API reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-remote-links/#api-rest-api-3-issue-issueidorkey-remotelink-get)
 
 ```php
 <?php
@@ -1516,7 +1602,7 @@ try {
 
 ##### create remote issue link
 
-* [See Jira API reference](https://docs.atlassian.com/software/jira/docs/api/REST/latest/#api/2/issue-getRemoteIssueLinks)
+* [See Jira API reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-remote-links/#api-rest-api-3-issue-issueidorkey-remotelink-post)
 
 ```php
 <?php
@@ -1589,12 +1675,17 @@ try {
 
 #### Add worklog in issue
 
-[See Jira API V2 reference](https://docs.atlassian.com/software/jira/docs/api/REST/latest/#api/2/issue-addWorklog)
+[See Jira API reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-worklogs/#api-rest-api-3-issue-issueidorkey-worklog-post)
 
 ```php
 <?php
 require 'vendor/autoload.php';
 
+use DateInterval;
+use DateTime;
+use DH\Adf\Node\Block\Document;
+use JiraCloud\ADF\AtlassianDocumentFormat;
+use PHPUnit\Framework\TestCase;
 use JiraCloud\Issue\IssueService;
 use JiraCloud\Issue\Worklog;
 use JiraCloud\JiraException;
@@ -1603,58 +1694,42 @@ $issueKey = 'TEST-961';
 
 try {
     $workLog = new Worklog();
+    
+    $doc = (new Document())
+                ->heading(1)            // header level 1, can have child blocks (needs to be closed with `->end()`)
+                    ->text('h1')        // simple unstyled text, cannot have child blocks (no `->end()` needed)
+                ->end()                 // closes `heading` node
+                ->paragraph()           // paragraph, can have child blocks (needs to be closed with `->end()`)
+                    ->text('we’re ')    // simple unstyled text
+                    ->strong('support') // text node embedding a `strong` mark
+                    ->text(' ')         // simple unstyled text
+                    ->em('markdown')    // text node embedding a `em` mark
+                    ->text('. ')        // simple unstyled text
+                    ->underline('like') // text node embedding a `underline` mark
+                    ->text(' this.')    // simple unstyled text
+                ->end()                 // closes `paragraph` node
+                ->heading(2)            // header level 2
+                    ->text('h2')        // simple unstyled text
+                ->end()                 // closes `heading` node
+                ->heading(3)
+                    ->text('heading 3')
+                ->end()
+                ->paragraph()           // paragraph
+                    ->text('also support heading.') // simple unstyled text
+                ->end()                 // closes `paragraph` node
+                ->codeblock('php')
+                    ->text($code)
+                ->end()
+            ;
 
-    $workLog->setComment('I did some work here.')
-            ->setStarted('2016-05-28 12:35:54')
-            ->setTimeSpent('1d 2h 3m');
+    $comment = new AtlassianDocumentFormat($doc);
 
-    $issueService = new IssueService();
-
-    $ret = $issueService->addWorklog($issueKey, $workLog);
-
-    $workLogid = $ret->{'id'};
-
-    var_dump($ret);
-} catch (JiraCloud\JiraException $e) {
-    $this->assertTrue(false, 'Create Failed : '.$e->getMessage());
-}
-
-```
-
-[See Jira API V3 reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/#api-rest-api-3-issue-issueIdOrKey-worklog-post)
-
-```php
-<?php
-require 'vendor/autoload.php';
-
-// Worklog example for API V3 assumes JIRAAPI_V3_REST_API_V3=true is configured in
-// your .env file.
-
-use JiraCloud\Issue\ContentField;
-use JiraCloud\Issue\IssueService;
-use JiraCloud\Issue\Worklog;
-use JiraCloud\JiraException;
-
-$issueKey = 'TEST-961';
-
-try {
-    $workLog = new Worklog();
-
-    $paragraph = new ContentField();
-    $paragraph->type = 'paragraph';
-    $paragraph->content[] = [
-        'text' => 'I did some work here.',
-        'type' => 'text',
-    ];
-
-    $comment = new ContentField();
-    $comment->type = 'doc';
-    $comment->version = 1;
-    $comment->content[] = $paragraph;
+    $startedAt = (new DateTime('NOW'))
+        ->add(DateInterval::createFromDateString('-1 hour -27 minute'));
 
     $workLog->setComment($comment)
-            ->setStarted('2016-05-28 12:35:54')
-            ->setTimeSpent('1d 2h 3m');
+        ->setStarted($startedAt)
+        ->setTimeSpent('1d 2h 3m');
 
     $issueService = new IssueService();
 
@@ -1668,16 +1743,20 @@ try {
 }
 
 ```
-
 
 #### edit worklog in issue
 
-[See Jira API reference](https://docs.atlassian.com/software/jira/docs/api/REST/latest/#api/2/issue-updateWorklog)
+[See Jira API reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-worklogs/#api-rest-api-3-issue-issueidorkey-worklog-id-put)
 
 ```php
 <?php
 require 'vendor/autoload.php';
 
+use DateInterval;
+use DateTime;
+use DH\Adf\Node\Block\Document;
+use JiraCloud\ADF\AtlassianDocumentFormat;
+use PHPUnit\Framework\TestCase;
 use JiraCloud\Issue\IssueService;
 use JiraCloud\Issue\Worklog;
 use JiraCloud\JiraException;
@@ -1688,9 +1767,34 @@ $workLogid = '12345';
 try {
     $workLog = new Worklog();
 
-    $workLog->setComment('I did edit previous worklog here.')
-            ->setStarted('2016-05-29 13:15:34')
-            ->setTimeSpent('3d 4h 5m');
+    $doc = (new Document())
+                ->heading(1)            // header level 1, can have child blocks (needs to be closed with `->end()`)
+                ->text('h1')        // simple unstyled text, cannot have child blocks (no `->end()` needed)
+                ->end()                 // closes `heading` node
+                ->paragraph()           // paragraph, can have child blocks (needs to be closed with `->end()`)
+                    ->text('I’did ')    // simple unstyled text
+                    ->strong('edit') // text node embedding a `strong` mark
+                    ->text(' ')         // simple unstyled text
+                    ->em('previous')    // text node embedding a `em` mark
+                    ->text(' ')        // simple unstyled text
+                    ->underline('worklog') // text node embedding a `underline` mark
+                    ->text(' here.')    // simple unstyled text
+                ->end()                 // closes `paragraph` node
+                ->heading(2)            // header level 2
+                 ->text('h2')        // simple unstyled text
+                ->end()                 // closes `heading` node
+                ->heading(3)
+                 ->text('heading 3')
+                ->end()
+                ->paragraph()           // paragraph
+                 ->text('also support heading.') // simple unstyled text
+                ->end()                 // closes `paragraph` node
+            ;
+
+    $comment = new AtlassianDocumentFormat($doc);
+
+    $workLog->setComment($comment)
+        ->setTimeSpent('2d 7h 5m');
 
     $issueService = new IssueService();
 
@@ -1705,9 +1809,9 @@ try {
 
 #### Get issue worklog
 
-[See Jira API reference (get full issue worklog)](https://docs.atlassian.com/software/jira/docs/api/REST/latest/#api/2/issue-getIssueWorklog)
+[See Jira API reference (get full issue worklog)](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-worklogs/#api-rest-api-3-issue-issueidorkey-worklog-get)
 
-[See Jira API reference (get worklog by id)](https://docs.atlassian.com/software/jira/docs/api/REST/latest/#api/2/issue-getWorklog)
+[See Jira API reference (get worklog by id)](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-worklogs/#api-rest-api-3-worklog-list-post)
 
 ```php
 <?php
@@ -1824,7 +1928,7 @@ try {
 ```
 #### Create Issue Link
 
-[See Jira API reference](https://docs.atlassian.com/software/jira/docs/api/REST/latest/#api/2/issueLink-linkIssues)
+[See Jira API reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-links/#api-rest-api-3-issuelink-post)
 
 The Link Issue Resource provides functionality to manage issue links.
 
@@ -1837,17 +1941,35 @@ use JiraCloud\IssueLink\IssueLinkService;
 use JiraCloud\JiraException;
 
 try {
+    $doc = (new Document())
+                ->heading(1)            // header level 1, can have child blocks (needs to be closed with `->end()`)
+                    ->text('h1')        // simple unstyled text, cannot have child blocks (no `->end()` needed)
+                ->end()                 // closes `heading` node
+                ->paragraph()           // paragraph, can have child blocks (needs to be closed with `->end()`)
+                    ->text('Issue Link ')    // simple unstyled text
+                    ->strong('By ') // text node embedding a `strong` mark
+                    ->text(' REST ')         // simple unstyled text
+                    ->em('API')
+                ->end()                 // closes `paragraph` node
+             ;
+
+    $comment = new AtlassianDocumentFormat($doc);
+
     $il = new IssueLink();
 
-    $il->setInwardIssue('TEST-258')
-        ->setOutwardIssue('TEST-249')
-        ->setLinkTypeName('Relates' )
-        ->setComment('Linked related issue via REST API.');
-            
+    $inwardKey = 'TEST-162';
+    $outwardKey = 'ST-3';
+    
+    $il->setInwardIssueByKey($inwardKey)
+        ->setOutwardIssueByKey($outwardKey)
+        ->setLinkTypeName('Duplicate' )
+        ->setCommentAsADF($comment)
+    ;
+
     $ils = new IssueLinkService();
 
     $ret = $ils->addIssueLink($il);
-
+    
 } catch (JiraCloud\JiraException $e) {
     print('Error Occurred! ' . $e->getMessage());
 }
@@ -1855,7 +1977,7 @@ try {
 
 #### Get Issue LinkType
 
-[See Jira API reference](https://docs.atlassian.com/software/jira/docs/api/REST/latest/#api/2/issueLinkType-getIssueLinkTypes)
+[See Jira API reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-link-types/#api-group-issue-link-types)
 
 Rest resource to retrieve a list of issue link types.
 
@@ -2346,9 +2468,11 @@ try {
 
     $version->setName('1.0.0')
             ->setDescription('Generated by script')
-            ->setReleased(true)
-            ->setReleaseDate(new \DateTime())
-            ->setProjectId($project->id);
+            ->setReleased(false)
+            ->setStartDateAsDateTime(new \DateTime())
+            ->setReleaseDateAsDateTime((new \DateTime())->add(date_interval_create_from_date_string('2 weeks 3 days')))
+            ->setProjectId($project->id)
+            ;
 
     $res = $versionService->create($version);
 
@@ -2381,9 +2505,9 @@ try {
     $ver->setName($ver->name . ' Updated name')
         ->setDescription($ver->description . ' Updated description')
         ->setReleased(false)
-        ->setReleaseDate(
-            (new \DateTime())->add(date_interval_create_from_date_string('1 months 3 days'))
-        );
+        ->setStartDateAsDateTime(new \DateTime())
+        ->setReleaseDateAsDateTime((new \DateTime())->add(date_interval_create_from_date_string('1 months 3 days')))
+        ;
 
     $res = $versionService->update($ver);
 

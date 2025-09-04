@@ -30,16 +30,16 @@ class IssueService extends \JiraCloud\JiraClient
     /**
      *  get all project list.
      *
-     * @param string|int $issueIdOrKey
+     * @param int|string $issueIdOrKey
      * @param array      $paramArray   Query Parameter key-value Array.
-     * @param Issue      $issueObject
+     * @param Issue|null $issueObject
      *
-     * @throws JiraException
      * @throws \JsonMapper_Exception
+     * @throws JiraException
      *
      * @return Issue class
      */
-    public function get($issueIdOrKey, $paramArray = [], $issueObject = null): Issue
+    public function get(int|string $issueIdOrKey, array $paramArray = [], ?Issue $issueObject = null): Issue
     {
         $issueObject = ($issueObject) ? $issueObject : new Issue();
 
@@ -58,12 +58,12 @@ class IssueService extends \JiraCloud\JiraClient
      *
      * @param IssueField $issueField
      *
-     * @throws JiraException
      * @throws \JsonMapper_Exception
+     * @throws JiraException
      *
      * @return Issue created issue key
      */
-    public function create($issueField): Issue
+    public function create(IssueField $issueField): Issue
     {
         $issue = new Issue();
 
@@ -85,12 +85,12 @@ class IssueService extends \JiraCloud\JiraClient
      * @param IssueField[] $issueFields Array of IssueField objects
      * @param int          $batchSize   Maximum number of issues to send in each request
      *
-     * @throws JiraException
      * @throws \JsonMapper_Exception
+     * @throws JiraException
      *
      * @return Issue[] Array of results, where each result represents one batch of insertions
      */
-    public function createMultiple($issueFields, $batchSize = 50): array
+    public function createMultiple(array $issueFields, int $batchSize = 50): array
     {
         $issues = [];
 
@@ -120,7 +120,7 @@ class IssueService extends \JiraCloud\JiraClient
      *
      * @return Issue[] Result of API call to insert many issues
      */
-    private function bulkInsert($issues): array
+    private function bulkInsert(array $issues): array
     {
         $data = json_encode(['issueUpdates' => $issues]);
 
@@ -138,17 +138,17 @@ class IssueService extends \JiraCloud\JiraClient
     /**
      * Add one or more file to an issue.
      *
-     * @param string|int   $issueIdOrKey  Issue id or key
+     * @param int|string   $issueIdOrKey  Issue id or key
      * @param array|string $filePathArray attachment file path.
      *
-     * @throws JiraException
      * @throws \JsonMapper_Exception
+     * @throws JiraException
      *
      * @return Attachment[]
      */
-    public function addAttachments($issueIdOrKey, $filePathArray): array
+    public function addAttachments(int|string $issueIdOrKey, array|string $filePathArray): array
     {
-        if (is_array($filePathArray) == false) {
+        if (!is_array($filePathArray)) {
             $filePathArray = [$filePathArray];
         }
 
@@ -183,19 +183,15 @@ class IssueService extends \JiraCloud\JiraClient
     /**
      * update issue.
      *
-     * @param string|int $issueIdOrKey Issue Key
-     * @param IssueField $issueField   object of Issue class
-     * @param array      $paramArray   Query Parameter key-value Array.
-     *
      * @throws JiraException
      *
      * @return string created issue key
      */
-    public function update($issueIdOrKey, $issueField, $paramArray = []): string
+    public function update(int|string $issueIdOrKey, IssueField $issueField, array $paramArray = []): string
     {
         $issue = new Issue();
 
-        // serilize only not null field.
+        // serialize only not null field.
         $issue->fields = $issueField;
 
         //$issue = $this->filterNullVariable((array)$issue);
@@ -206,16 +202,11 @@ class IssueService extends \JiraCloud\JiraClient
 
         $queryParam = '?'.http_build_query($paramArray);
 
-        $ret = $this->exec($this->uri."/$issueIdOrKey".$queryParam, $data, 'PUT');
-
-        return $ret;
+        return $this->exec($this->uri."/$issueIdOrKey".$queryParam, $data, 'PUT');
     }
 
     /**
      * Adds a new comment to an issue.
-     *
-     * @param string|int $issueIdOrKey Issue id or key
-     * @param Comment    $comment
      *
      * @throws JiraException
      * @throws \JsonMapper_Exception
@@ -226,7 +217,7 @@ class IssueService extends \JiraCloud\JiraClient
     {
         $this->log->info("addComment=\n");
 
-        if (!($comment instanceof Comment) || empty($comment->body)) {
+        if (empty($comment->body)) {
             throw new JiraException('comment param must be instance of Comment and have body text.');
         }
 
@@ -235,45 +226,39 @@ class IssueService extends \JiraCloud\JiraClient
         $ret = $this->exec($this->uri."/$issueIdOrKey/comment", $data);
 
         $this->log->debug('add comment result='.var_export($ret, true));
-        $comment = $this->json_mapper->map(
+
+        return $this->json_mapper->map(
             json_decode($ret),
             new Comment()
         );
-
-        return $comment;
     }
 
     /**
      * Update a comment in issue.
-     *
-     * @param string|int $issueIdOrKey Issue id or key
-     * @param string|int $id           Comment id
-     * @param Comment    $comment
      *
      * @throws JiraException
      * @throws \JsonMapper_Exception
      *
      * @return Comment Comment class
      */
-    public function updateComment($issueIdOrKey, $id, $comment): Comment
+    public function updateComment(string|int $issueIdOrKey, string|int $comment_id, Comment $comment): Comment
     {
         $this->log->info("updateComment=\n");
 
-        if (!($comment instanceof Comment) || empty($comment->body)) {
+        if (empty($comment->body)) {
             throw new JiraException('comment param must instance of Comment and have to body text.!');
         }
 
         $data = json_encode($comment);
 
-        $ret = $this->exec($this->uri."/$issueIdOrKey/comment/$id", $data, 'PUT');
+        $ret = $this->exec($this->uri."/$issueIdOrKey/comment/$comment_id", $data, 'PUT');
 
         $this->log->debug('update comment result='.var_export($ret, true));
-        $comment = $this->json_mapper->map(
+
+        return $this->json_mapper->map(
             json_decode($ret),
             new Comment()
         );
-
-        return $comment;
     }
 
     /**
@@ -288,7 +273,7 @@ class IssueService extends \JiraCloud\JiraClient
      *
      * @return Comment Comment class
      */
-    public function getComment($issueIdOrKey, $id, array $paramArray = []): Comment
+    public function getComment(string|int $issueIdOrKey, string|int $id, array $paramArray = []): Comment
     {
         $this->log->info("getComment=\n");
 
@@ -407,6 +392,8 @@ class IssueService extends \JiraCloud\JiraClient
      * @throws JiraException
      *
      * @return Transition[] array of Transition class
+     *
+     * @phpstan-return ArrayObject<int, Transition>
      */
     public function getTransition(string|int $issueIdOrKey, array $paramArray = []): ArrayObject
     {
@@ -707,6 +694,8 @@ class IssueService extends \JiraCloud\JiraClient
      * @throws JiraException
      *
      * @return Priority[] array of priority class
+     *
+     * @phpstan-return ArrayObject<int, Priority>
      */
     public function getAllPriorities(): ArrayObject
     {
@@ -774,6 +763,8 @@ class IssueService extends \JiraCloud\JiraClient
      * @throws \JsonMapper_Exception
      *
      * @return Reporter[]
+     *
+     * @phpstan-return ArrayObject<int, Reporter>
      */
     public function getWatchers(string|int $issueIdOrKey): ArrayObject
     {
@@ -956,6 +947,8 @@ class IssueService extends \JiraCloud\JiraClient
      *
      * @return RemoteIssueLink[]
      *
+     * @phpstan-return ArrayObject<int, RemoteIssueLink>
+     *
      * @see https://developer.atlassian.com/server/jira/platform/jira-rest-api-for-remote-issue-links/
      * @see https://docs.atlassian.com/software/jira/docs/api/REST/latest/#api/2/issue-getRemoteIssueLinks
      */
@@ -1036,6 +1029,8 @@ class IssueService extends \JiraCloud\JiraClient
      * @throws \JsonMapper_Exception
      *
      * @return SecurityScheme[] array of SecurityScheme class
+     *
+     * @phpstan-return ArrayObject<int, SecurityScheme>
      */
     public function getAllIssueSecuritySchemes(): ArrayObject
     {

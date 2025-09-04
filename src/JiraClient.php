@@ -59,7 +59,7 @@ class JiraClient
      *
      * @throws JiraException
      */
-    public function __construct(ConfigurationInterface $configuration = null, LoggerInterface $logger = null, string $path = './')
+    public function __construct(?ConfigurationInterface $configuration = null, ?LoggerInterface $logger = null, string $path = './')
     {
         if ($configuration === null) {
             if (!file_exists($path.'.env')) {
@@ -92,7 +92,18 @@ class JiraClient
             }
         } else {
             $this->log = new Logger('JiraClient');
-            $this->log->pushHandler(new NoOperationMonologHandler());
+
+            // Monolog 3.x has a breaking change, so I have to add this dirty code.
+            $ver = \Composer\InstalledVersions::getVersion('monolog/monolog');
+            $major = intval(explode('.', $ver)[0]);
+
+            if ($major === 2) {
+                $this->log->pushHandler(new NoOperationMonologHandler());
+            } elseif ($major === 3) {
+                $this->log->pushHandler(new NoOperationMonologHandlerV3());
+            } else {
+                throw new JiraException("Unsupported Monolog version $major");
+            }
         }
 
         $this->http_response = 200;
@@ -121,7 +132,7 @@ class JiraClient
     {
         $this->authorization($ch, $curl_http_headers, $cookieFile);
 
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $this->getConfiguration()->isCurlOptSslVerifyHost());
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $this->getConfiguration()->getCurlOptSslVerifyHostValue());
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $this->getConfiguration()->isCurlOptSslVerifyPeer());
         if ($this->getConfiguration()->isCurlOptSslCert()) {
             curl_setopt($ch, CURLOPT_SSLCERT, $this->getConfiguration()->isCurlOptSslCert());
@@ -136,6 +147,7 @@ class JiraClient
             curl_setopt($ch, CURLOPT_SSLKEYPASSWD, $this->getConfiguration()->isCurlOptSslKeyPassword());
         }
         if ($this->getConfiguration()->getTimeout()) {
+            curl_setopt($ch, CURLOPT_TIMEOUT, $this->getConfiguration()->getTimeout());
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $this->getConfiguration()->getTimeout());
         }
 
@@ -174,7 +186,7 @@ class JiraClient
      *
      * @return string|bool
      */
-    public function exec(string $context, array|string $post_data = null, string $custom_request = null, string $cookieFile = null): string|bool
+    public function exec(string $context, array|string|null $post_data = null, ?string $custom_request = null, ?string $cookieFile = null): string|bool
     {
         $url = $this->createUrlByContext($context);
 
@@ -224,7 +236,8 @@ class JiraClient
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         }
 
-        curl_setopt($ch, CURLOPT_ENCODING, '');
+        // See https://github.com/php/php-src/issues/14184
+        // curl_setopt($ch, CURLOPT_ENCODING, '');
 
         curl_setopt(
             $ch,
@@ -291,51 +304,20 @@ class JiraClient
         // send file
         curl_setopt($ch, CURLOPT_POST, true);
 
-        if (PHP_MAJOR_VERSION == 5 && PHP_MINOR_VERSION < 5) {
-            $attachments = realpath($upload_file);
-            $filename = basename($upload_file);
+        // CURLFile require PHP > 5.5
+        //$attachments = new \CURLFile(realpath($upload_file));
+        $attachments = new \CURLFile(realpath($upload_file));
+        $attachments->setPostFilename(basename($upload_file));
 
-            curl_setopt(
-                $ch,
-                CURLOPT_POSTFIELDS,
-                ['file' => '@'.$attachments.';filename='.$filename]
-            );
+        curl_setopt(
+            $ch,
+            CURLOPT_POSTFIELDS,
+            ['file' => $attachments]
+        );
 
-            $this->log->debug('using legacy file upload');
-        } else {
-            // CURLFile require PHP > 5.5
-            $attachments = new \CURLFile(realpath($upload_file));
-            $attachments->setPostFilename(basename($upload_file));
+        $this->log->debug('using CURLFile='.var_export($attachments, true));
 
-            curl_setopt(
-                $ch,
-                CURLOPT_POSTFIELDS,
-                ['file' => $attachments]
-            );
-
-            $this->log->debug('using CURLFile='.var_export($attachments, true));
-        }
-
-        $this->authorization($ch, $curl_http_headers);
-
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $this->getConfiguration()->isCurlOptSslVerifyHost());
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $this->getConfiguration()->isCurlOptSslVerifyPeer());
-
-        if ($this->getConfiguration()->isCurlOptSslCert()) {
-            curl_setopt($ch, CURLOPT_SSLCERT, $this->getConfiguration()->isCurlOptSslCert());
-        }
-        if ($this->getConfiguration()->isCurlOptSslCertPassword()) {
-            curl_setopt($ch, CURLOPT_SSLCERTPASSWD, $this->getConfiguration()->isCurlOptSslCertPassword());
-        }
-        if ($this->getConfiguration()->isCurlOptSslKey()) {
-            curl_setopt($ch, CURLOPT_SSLKEY, $this->getConfiguration()->isCurlOptSslKey());
-        }
-        if ($this->getConfiguration()->isCurlOptSslKeyPassword()) {
-            curl_setopt($ch, CURLOPT_SSLKEYPASSWD, $this->getConfiguration()->isCurlOptSslKeyPassword());
-        }
-        if ($this->getConfiguration()->getTimeout()) {
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $this->getConfiguration()->getTimeout());
-        }
+        $curl_http_headers = $this->curlPrepare($ch, $curl_http_headers, null);
 
         $this->proxyConfigCurlHandle($ch);
 
@@ -423,7 +405,7 @@ class JiraClient
     /**
      * Add authorize to curl request.
      */
-    protected function authorization(\CurlHandle $ch, array &$curl_http_headers, string $cookieFile = null): void
+    protected function authorization(\CurlHandle $ch, array &$curl_http_headers, ?string $cookieFile = null): void
     {
         // use cookie
         if ($this->getConfiguration()->isCookieAuthorizationEnabled()) {
@@ -490,7 +472,7 @@ class JiraClient
     /**
      * download and save into outDir.
      */
-    public function download(string $url, string $outDir, string $file, string $cookieFile = null): mixed
+    public function download(string $url, string $outDir, string $file, ?string $cookieFile = null): mixed
     {
         $curl_http_header = [
             'Accept: */*',

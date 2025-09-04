@@ -2,12 +2,15 @@
 
 namespace JiraCloud\Issue;
 
+use AllowDynamicProperties;
 use DateTimeInterface;
+use DH\Adf\Node\Block\Document;
 use JiraCloud\ADF\ADFMarkType;
 use JiraCloud\ADF\AtlassianDocumentFormat;
 use JiraCloud\ClassSerialize;
 use JiraCloud\Project\Project;
 
+#[AllowDynamicProperties]
 class IssueField implements \JsonSerializable
 {
     use ClassSerialize;
@@ -26,17 +29,17 @@ class IssueField implements \JsonSerializable
 
     public ?DateTimeInterface $updated = null;
 
-    public ?AtlassianDocumentFormat $description;
+    public ?AtlassianDocumentFormat $description = null;
 
     public ?Priority $priority = null;
 
     public ?IssueStatus $status = null;
 
-    public array $labels;
+    public ?array $labels = null;
 
     public Project $project;
 
-    public ?string $environment;
+    public ?array $environment;
 
     /* @var \JiraCloud\Issue\Component[] This property must don't describe the type feature for JSON deserialized. */
     public $components;
@@ -47,7 +50,7 @@ class IssueField implements \JsonSerializable
 
     public ?object $resolution;
 
-    public array $fixVersions;
+    public ?array $fixVersions = null;
 
     public ?Reporter $creator;
 
@@ -57,8 +60,8 @@ class IssueField implements \JsonSerializable
 
     public ?Reporter $assignee = null;
 
-    /** @var \JiraCloud\Issue\Version[] */
-    public $versions;
+    /** @var \JiraCloud\Issue\Version[]|null */
+    public ?array $versions = null;
 
     /** @var \JiraCloud\Issue\Attachment[] */
     public $attachment;
@@ -152,7 +155,7 @@ class IssueField implements \JsonSerializable
         return $this->customFields;
     }
 
-    public function addCustomField(string $key, string|int|float $value): static
+    public function addCustomField(string $key, string|int|float|array|Document|null $value): static
     {
         $this->customFields[$key] = $value;
 
@@ -359,7 +362,7 @@ class IssueField implements \JsonSerializable
         return $this;
     }
 
-    public function setParent(Issue $parent): void
+    public function setParent(?Issue $parent): void
     {
         $this->parent = $parent;
     }

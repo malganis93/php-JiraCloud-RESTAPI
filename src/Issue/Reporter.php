@@ -10,24 +10,35 @@ class Reporter implements \JsonSerializable
 
     public string $self;
 
-    public ?string $name;
+    public ?string $name = null;
 
-    public string $emailAddress;
+    public ?string $emailAddress = null;
 
-    public array|null $avatarUrls;
+    public ?array $avatarUrls;
 
     public string $displayName;
 
     public string $active;
 
+    public string $timezone;
+
+    public string $accountType;
+
     private bool $wantUnassigned = false;
 
     public string $accountId;
 
+    public string $locale;
+
+    public string $expand;
+    public array $applicationRoles;
+
+    public array $groups;
+
     #[\ReturnTypeWillChange]
     public function jsonSerialize()
     {
-        $vars = (get_object_vars($this));
+        $vars = get_object_vars($this);
 
         foreach ($vars as $key => $value) {
             if ($key === 'name' && ($this->isWantUnassigned() === true)) {
